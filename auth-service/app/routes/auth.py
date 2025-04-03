@@ -44,7 +44,8 @@ async def login(user: UserLogin):
         })
         return {
             "access_token": response.session.access_token,
-            "user_id": response.user.id
+            "user_id": response.user.id,
+            "username": response.user.user_metadata.get("username")
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid credentials")
