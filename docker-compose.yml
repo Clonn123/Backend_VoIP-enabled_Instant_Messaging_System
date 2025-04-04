@@ -7,9 +7,33 @@ services:
       dockerfile: auth-service/Dockerfile
     container_name: auth_service
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./auth-service:/app
     env_file:
       - .env
     restart: always
+
+  server-service:
+    build:
+      context: .
+      dockerfile: server-service/Dockerfile
+    container_name: server-service
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./server-service:/app
+    env_file:
+      - .env
+    restart: always
+
+  gateway:
+    image: nginx:latest
+    container_name: gateway
+    volumes:
+      - ./gateway/default.conf:/etc/nginx/conf.d/default.conf
+    ports:
+      - "80:80"
+    depends_on:
+      - auth-service
+      - server-service
