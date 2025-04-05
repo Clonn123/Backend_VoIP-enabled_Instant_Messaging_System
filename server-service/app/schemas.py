@@ -6,6 +6,7 @@ from typing import Optional
 class ServerCreate(BaseModel):
     name: str
     is_public: bool = True
+    image_url: str
 
 class ServerUpdate(BaseModel):
     name: Optional[str] = None

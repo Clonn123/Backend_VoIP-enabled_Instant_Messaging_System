@@ -1,6 +1,20 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, UploadFile, HTTPException, Depends, Request
 from ..database import supabase
 from ..schemas import ServerCreate, ServerUpdate, ServerMember
+import requests
+import os
+import cloudinary
+import cloudinary.uploader
+from cloudinary.utils import cloudinary_url
+from dotenv import load_dotenv
+
+load_dotenv()
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True
+)
 
 async def get_current_user(request: Request):
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
@@ -22,6 +36,7 @@ async def create_server(
         # Создаем сервер
         server_data = {
             "name": server.name,
+            "image_url": server.image_url,
             "owner_id": user.user.id
         }
         
@@ -73,8 +88,26 @@ async def get_user_servers(user = Depends(get_current_user)):
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+async def upload_to_cloudinary(file: UploadFile, file_name: str):
+    try:
+        result = cloudinary.uploader.upload(
+            file.file,
+            folder="avatar_users",
+            resource_type="auto",
+            public_id=f"{file_name}-avatar" 
+        )
+        return result["secure_url"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cloudinary upload error: {str(e)}")
 
-
+@router.post("/upload-image")
+async def upload_image(file: UploadFile, user = Depends(get_current_user)):
+    try:
+        image_url = await upload_to_cloudinary(file, user.user.id)
+        return {"url": image_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # @router.get("/{server_id}")
 # async def get_server(server_id: str, user = Depends(get_current_user)):
