@@ -97,9 +97,10 @@ def update_email(data: UpdateEmail):
         return {"message": "Письмо с подтверждением смены почты выслано"}
         
     except Exception as e:
+        print(str(e))
         raise HTTPException(
             status_code=500,
-            detail=f"Внутренняя ошибка сервера: {str(e)}"
+            detail=f"Внутренняя ошибка сервера: {str(e)}",
         )
 
 @router.patch("/update_password")
