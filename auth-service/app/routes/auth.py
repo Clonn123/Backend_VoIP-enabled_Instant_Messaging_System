@@ -2,10 +2,8 @@ from fastapi import APIRouter, HTTPException, Request
 from ..database import supabase
 from ..schemas import UserRegister, UserLogin
 from fastapi import Depends
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 router = APIRouter(prefix="/auth")
-security = HTTPBearer()
 
 @router.post("/register")
 async def register(user: UserRegister):
@@ -49,27 +47,6 @@ async def login(user: UserLogin):
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-
-# Пока опустим, так как выход по кнопке на фронте, но можно и тут добавить будет
-# @router.post("/logout")
-# async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
-#     try:
-#         # Извлекаем токен из HTTPBearer
-#         token = credentials.credentials
-        
-#         # Проверяем, что токен не пустой
-#         if not token:
-#             raise HTTPException(status_code=401, detail="Token is missing")
-        
-#         # Выход из системы через Supabase
-#         supabase.auth.sign_out(token)
-#         return {"status": "success"}
-    
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=400,
-#             detail=f"Logout failed: {str(e)}"
-#         )
 
 async def get_current_user(request: Request):
     # Извлекаем токен из заголовка
