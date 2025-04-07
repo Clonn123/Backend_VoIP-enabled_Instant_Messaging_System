@@ -98,10 +98,16 @@ def update_email(data: UpdateEmail):
         
     except Exception as e:
         print(str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=f"Внутренняя ошибка сервера: {str(e)}",
-        )
+        if str(e) == "A user with this email address has already been registered":
+            raise HTTPException(
+                status_code=400,
+                detail="Этот email уже используется"
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Внутренняя ошибка сервера: {str(e)}",
+            )
 
 @router.patch("/update_password")
 def update_password(data: UpdatePassword):
