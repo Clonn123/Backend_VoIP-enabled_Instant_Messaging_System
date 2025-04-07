@@ -2,7 +2,6 @@ from pydantic import BaseModel
 from datetime import date
 from typing import Optional
 
-# Новые схемы для серверов
 class ServerCreate(BaseModel):
     name: str
     is_public: bool = True
@@ -17,3 +16,16 @@ class ServerMember(BaseModel):
     user_id: str
     server_id: str
     role: str  # "owner", "admin", "member"
+class TextChannel(BaseModel):
+    id: str
+    server_id: str
+    name: str
+    description: str | None
+    position: str
+    is_private: bool
+    created_at: str
+    updated_at: str
+class TextChannelCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    is_private: bool = False
