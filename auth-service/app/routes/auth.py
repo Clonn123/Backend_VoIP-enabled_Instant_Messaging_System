@@ -25,7 +25,9 @@ async def register(user: UserRegister):
             "user_id": auth_response.user.id,
             "username": user.username,
             "first_name": user.first_name,
-            "birth_date": user.birth_date.isoformat()
+            "birth_date": user.birth_date.isoformat(),
+            # Базовая ава для всех новых
+            "avatar_url": "https://sun9-11.userapi.com/impg/tPC_WVw9-lSqlypnpBxySZm9eloqJBL9di2tSQ/j6onL53z90o.jpg?size=456x492&quality=95&sign=49455024b494d4189109706212579dfe&type=album",
         }).execute()
         
         return {"user_id": auth_response.user.id}
@@ -40,10 +42,18 @@ async def login(user: UserLogin):
             "email": user.email,
             "password": user.password
         })
+
+        profile_avatar_url = supabase.table("profiles") \
+            .select("avatar_url") \
+            .eq("user_id", response.user.id) \
+            .single() \
+            .execute()
+
         return {
             "access_token": response.session.access_token,
             "user_id": response.user.id,
-            "username": response.user.user_metadata.get("username")
+            "username": response.user.user_metadata.get("username"),
+            "avatar_url": profile_avatar_url.data.get("avatar_url"),
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid credentials")

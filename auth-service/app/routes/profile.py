@@ -1,6 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from ..schemas import UpdateUsername, UpdateFirstName, UpdateEmail, UpdatePassword, UpdateAvatar
 from ..database import supabase
+import os
+import cloudinary
+import cloudinary.uploader
+from dotenv import load_dotenv
+
+load_dotenv()
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET"),
+    secure=True
+)
 
 router = APIRouter(prefix="/profile")
 
@@ -130,3 +142,22 @@ def update_password(data: UpdatePassword):
             status_code=500,
             detail=f"Внутренняя ошибка сервера: {str(e)}"
         )
+    
+async def upload_avatar_to_cloudinary(file: UploadFile):
+    try:
+        result = cloudinary.uploader.upload(
+            file.file,
+            folder="avatar_users",
+            resource_type="auto",
+        )
+        return result["secure_url"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Cloudinary upload error: {str(e)}")
+    
+@router.post("/upload-avatar")
+async def upload_avatar(file: UploadFile):
+    try:
+        image_url = await upload_avatar_to_cloudinary(file)
+        return {"url": image_url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
