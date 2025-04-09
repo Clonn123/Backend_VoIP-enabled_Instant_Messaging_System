@@ -26,6 +26,18 @@ services:
     env_file:
       - .env
     restart: always
+  chat-service:
+    build:
+      context: .
+      dockerfile: chat-service/Dockerfile
+    container_name: chat-service
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./chat-service:/app
+    env_file:
+      - .env
+    restart: always
 
   gateway:
     image: nginx:latest
@@ -37,3 +49,4 @@ services:
     depends_on:
       - auth-service
       - server-service
+      - chat-service
