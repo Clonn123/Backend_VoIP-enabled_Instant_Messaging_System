@@ -195,6 +195,40 @@ async def get_text_channels(
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/{server_id}/del/textchannels/{channel_id}")
+async def del_text_channels(
+    server_id: str, 
+    channel_id: str, 
+    user = Depends(get_current_user)
+):
+    try:
+        # 1. Проверяем права пользователя (только owner/admin могут удалять каналы)
+        member = supabase.table("server_members") \
+            .select("role") \
+            .eq("server_id", server_id) \
+            .eq("user_id", user.user.id) \
+            .in_("role", ["owner", "admin"]) \
+            .maybe_single() \
+            .execute()
+        
+        if not member:
+            raise HTTPException(status_code=403, detail="Нет прав")
+        
+        # 3. Удаляем канал
+        supabase.table("text_channels") \
+            .delete() \
+            .eq("id", channel_id) \
+            .execute()
+        return {"message": "Канал успешно удален"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при удалении канала: {str(e)}"
+        )
     
 @router.post("/{server_id}/add/textchannels")
 async def create_text_channel(
@@ -212,8 +246,8 @@ async def create_text_channel(
             .maybe_single() \
             .execute()
         
-        if not member.data:
-            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        if not member:
+            raise HTTPException(status_code=403, detail="Нет прав")
         
         position_res = supabase.from_("text_channels") \
             .select("position") \
@@ -241,7 +275,49 @@ async def create_text_channel(
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+@router.delete("/{server_id}")
+async def delete_server(
+    server_id: str,
+    user = Depends(get_current_user)
+):
+    """
+    Удаляет сервер и все связанные данные (каналы, участники и т.д.)
+    Только владелец сервера может удалить сервер
+    """
+    try:
+        member = supabase.table("server_members") \
+            .select("role") \
+            .eq("server_id", server_id) \
+            .eq("user_id", user.user.id) \
+            .in_("role", ["owner"]) \
+            .maybe_single() \
+            .execute()
+        
+        if not member:
+            raise HTTPException(status_code=403, detail="Нет прав")
+        
+        # Удаляем текстовые каналы
+        supabase.table("text_channels") \
+            .delete() \
+            .eq("server_id", server_id) \
+            .execute()
+        # Удаляем сам сервер
+        supabase.table("servers") \
+            .delete() \
+            .eq("id", server_id) \
+            .execute()
 
+        # 3. Очищаем связанные данные в Cloudinary (если есть аватар)
+
+        return None
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка при удалении сервера: {str(e)}"
+        )
 # @router.put("/{server_id}")
 # async def update_server(
 #     server_id: str,
