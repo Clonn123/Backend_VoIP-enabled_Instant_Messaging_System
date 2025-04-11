@@ -26,13 +26,27 @@ services:
     env_file:
       - .env
     restart: always
+
+  friends-service:
+    build:
+      context: .
+      dockerfile: friends-service/Dockerfile
+    container_name: friends-service
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./friends-service:/app
+    env_file:
+      - .env
+    restart: always
+
   chat-service:
     build:
       context: .
       dockerfile: chat-service/Dockerfile
     container_name: chat-service
     ports:
-      - "8003:8000"
+      - "8004:8000"
     volumes:
       - ./chat-service:/app
     env_file:
