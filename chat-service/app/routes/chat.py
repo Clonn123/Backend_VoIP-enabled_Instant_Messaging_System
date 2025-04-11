@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, HTTPException, Depends, Request
 from ..database import supabase
-from ..schemas import ServerCreate, ServerUpdate, ServerMember, TextChannel, TextChannelCreate
+from ..schemas import Server, ServerUpdate, ServerMember, TextChannel, TextChannelCreate
 from uuid import UUID
 from typing import List
 import os
@@ -28,7 +28,27 @@ async def get_current_user(request: Request):
 
 router = APIRouter(prefix="/chat")
 
-@router.post("/")
-async def del_text_channels(): {
-    
-}
+@router.post("/{chat_id}")
+async def get_chat(
+    server_id: Server,
+    chat_id: str, 
+    user = Depends(get_current_user)
+):
+    try:
+        chat = supabase.table("text_channels") \
+            .select("*") \
+            .eq("id", chat_id) \
+            .eq("server_id", server_id.server_id) \
+            .maybe_single() \
+            .execute()
+
+        if not chat.data:
+            raise HTTPException(
+                status_code=404,
+                detail="Chat not found"
+            )
+        
+        return chat.data
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

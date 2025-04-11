@@ -29,3 +29,6 @@ class TextChannelCreate(BaseModel):
     name: str
     description: Optional[str] = None
     is_private: bool = False
+
+class Server(BaseModel):
+    server_id: str
