@@ -52,6 +52,18 @@ def update_username(data: UpdateUsername, user=Depends(get_current_user)):
                 detail="Ошибка обновления имени пользователя"
             )
         
+        # Обновляем имя пользователя в таблице friends, если он отправитель
+        supabase.table("friends") \
+            .update({"sender_name": data.username}) \
+            .eq("sender_id", user_id) \
+            .execute()
+
+        # Обновляем имя пользователя в таблице friends, если он получатель
+        supabase.table("friends") \
+            .update({"receiver_name": data.username}) \
+            .eq("receiver_id", user_id) \
+            .execute()
+        
         return {"message": "Имя пользователя обновлено"}
     
     except Exception as e:

@@ -43,17 +43,17 @@ async def login(user: UserLogin):
             "password": user.password
         })
 
-        profile_avatar_url = supabase.table("profiles") \
-            .select("avatar_url") \
+        profile = supabase.table("profiles") \
+            .select("*") \
             .eq("user_id", response.user.id) \
             .single() \
             .execute()
 
         return {
             "access_token": response.session.access_token,
-            "user_id": response.user.id,
-            "username": response.user.user_metadata.get("username"),
-            "avatar_url": profile_avatar_url.data.get("avatar_url"),
+            "user_id": profile.data.get("user_id"),
+            "username": profile.data.get("username"),
+            "avatar_url": profile.data.get("avatar_url"),
         }
     except Exception as e:
         raise HTTPException(status_code=401, detail="Invalid credentials")
