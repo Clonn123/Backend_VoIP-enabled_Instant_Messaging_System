@@ -154,3 +154,40 @@ async def cancel_friend_request(requestId: str, user=Depends(get_current_user)):
         .execute()
 
     return {"message": "Заявка отменена"}
+
+@router.get("/{user_id}")
+async def get_profile(user_id: str):
+    profile = supabase.table("profiles") \
+        .select("user_id, username, first_name, avatar_url") \
+        .eq("user_id", user_id) \
+        .single() \
+        .execute()
+
+    if not profile.data:
+        raise HTTPException(status_code=404, detail="Профиль не найден")
+
+    return profile.data
+
+@router.delete("/remove/{friend_id}")
+async def remove_friend(friend_id: str, user=Depends(get_current_user)):
+    user_id = user.user.id
+
+    friendship = supabase.table("friends") \
+        .select("*") \
+        .or_(
+            f"and(sender_id.eq.{user_id},receiver_id.eq.{friend_id},status.eq.accepted)," +
+            f"and(sender_id.eq.{friend_id},receiver_id.eq.{user_id},status.eq.accepted)"
+        ) \
+        .maybe_single() \
+        .execute()
+
+    if not friendship or not friendship.data:
+        raise HTTPException(status_code=404, detail="Дружба не найдена")
+
+    # Удаляем найденную заявку
+    supabase.table("friends") \
+        .delete() \
+        .eq("id", friendship.data["id"]) \
+        .execute()
+
+    return {"message": "Друг удалён"}
