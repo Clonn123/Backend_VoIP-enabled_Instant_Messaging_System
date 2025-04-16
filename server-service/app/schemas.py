@@ -29,3 +29,8 @@ class TextChannelCreate(BaseModel):
     name: str
     description: Optional[str] = None
     is_private: bool = False
+
+class InviteResponse(BaseModel):
+    status: str  # 'pending', 'accepted', 'rejected'
+class InviteCreate(BaseModel):
+    recipient_username: str

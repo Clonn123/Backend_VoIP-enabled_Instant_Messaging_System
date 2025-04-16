@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, HTTPException, Depends, Request
 from ..database import supabase
-from ..schemas import ServerCreate, ServerUpdate, ServerMember, TextChannel, TextChannelCreate
+from ..schemas import ServerCreate, InviteResponse, InviteCreate, TextChannel, TextChannelCreate
 from uuid import UUID
 from typing import List
 import os
@@ -152,32 +152,57 @@ async def get_server(server_id: str, user = Depends(get_current_user)):
     except Exception:
         raise HTTPException(status_code=500, detail="Internal server error")
 
-# Нужны друзья
-@router.post("/{server_id}/members")
-async def add_member(
+@router.post("/{server_id}/invites")
+async def create_invite(
     server_id: str,
-    member: ServerMember,
+    invite: InviteCreate,
     user = Depends(get_current_user)
 ):
-    try:
-        # Проверяем права (только owner/admin могут добавлять участников)
-        requester = supabase.table("server_members") \
-            .select("role") \
-            .eq("user_id", user.user.id) \
-            .eq("server_id", server_id) \
-            .in_("role", ["owner", "admin"]) \
-            .maybe_single() \
-            .execute()
-            
-        if not requester.data:
-            raise HTTPException(status_code=403, detail="Insufficient permissions")
-        
-        # Добавляем участника
-        result = supabase.table("server_members").insert(member.dict()).execute()
-        return result.data[0]
-        
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    recipient_profile = supabase.table("profiles") \
+        .select("user_id, username") \
+        .eq("username", invite.recipient_username) \
+        .maybe_single() \
+        .execute()
+    
+    if not recipient_profile:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    recipient_id = recipient_profile.data["user_id"]
+    # Проверяем, что пользователь не уже участник
+    existing_member = supabase.table("server_members") \
+        .select("*") \
+        .eq("server_id", server_id) \
+        .eq("user_id", recipient_id) \
+        .maybe_single() \
+        .execute()
+    
+    if existing_member:
+        raise HTTPException(status_code=400, detail="The user is already on the server")
+    
+    existing_invite = supabase.table("server_invites") \
+        .select("*") \
+        .eq("server_id", server_id) \
+        .eq("recipient_username", invite.recipient_username) \
+        .eq("status", "pending") \
+        .maybe_single() \
+        .execute()
+    
+    if existing_invite:
+        raise HTTPException(
+            status_code=400, 
+            detail="The invitation has already been sent"
+        )
+    # Создаем приглашение
+    new_invite = {
+        "server_id": server_id,
+        "sender_id": user.user.id,
+        "recipient_id": recipient_id,
+        "recipient_username": invite.recipient_username,
+        "status": "pending",
+    }
+
+    result = supabase.table("server_invites").insert(new_invite).execute()
+    return result.data[0]
 
 @router.get("/{server_id}/textchannels")
 async def get_text_channels(
@@ -318,6 +343,97 @@ async def delete_server(
             status_code=500,
             detail=f"Ошибка при удалении сервера: {str(e)}"
         )
+
+@router.get("/invites/received")
+async def get_received_invites(user = Depends(get_current_user)):
+    try:
+        # Получаем приглашения где текущий пользователь - получатель
+        invites = supabase.table("server_invites") \
+        .select("*, servers!fk_server(name), sender:profiles!fk_sender(username)") \
+        .eq("recipient_id", user.user.id) \
+        .eq("status", "pending") \
+        .execute()
+        
+        return invites.data
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/invites/sent")
+async def get_sent_invites(user = Depends(get_current_user)):
+    try:
+        # Получаем приглашения где текущий пользователь - отправитель
+        invites = supabase.table("server_invites") \
+            .select("*, servers!fk_server(name), profiles!recipient_id(username)") \
+            .eq("sender_id", user.user.id) \
+            .execute()
+        
+        return invites.data
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.post("/invites/{invite_id}/respond")
+async def respond_to_invite(invite_id: UUID, response: InviteResponse, user=Depends(get_current_user)):
+    try:
+        if response.status not in ("accepted", "rejected"):
+            raise HTTPException(status_code=400, detail="Недопустимый статус")
+        invite_response = supabase.table("server_invites") \
+            .select("*") \
+            .eq("id", str(invite_id)) \
+            .eq("recipient_id", user.user.id) \
+            .single() \
+            .execute()
+
+        invite = invite_response.data
+        if not invite:
+            raise HTTPException(status_code=404, detail="Приглашение не найдено")
+
+        # Обновляем статус
+        supabase.table("server_invites") \
+            .update({"status": response.status}) \
+            .eq("id", str(invite_id)) \
+            .execute()
+            
+        if response.status == "accepted":
+            supabase.table("server_members") \
+                .insert({
+                    "server_id": invite["server_id"],
+                    "user_id": user.user.id
+                }) \
+                .execute()
+
+        return {"message": f"Приглашение {response.status}"}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при обработке приглашения: {e}")
+@router.delete("/invites/{invite_id}")
+async def cancel_invite(invite_id: UUID, user=Depends(get_current_user)):
+    try:
+        # Удаляем приглашение
+        supabase.table("server_invites") \
+            .delete() \
+            .eq("id", str(invite_id)) \
+            .execute()
+
+        return {"message": "Приглашение отменено"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при удалении приглашения: {e}")
+@router.get("/invites/requests")
+async def check_incoming_requests(user=Depends(get_current_user)):
+    try:
+        response = supabase.table("server_invites") \
+            .select("id") \
+            .eq("recipient_id", user.user.id) \
+            .eq("status", "pending") \
+            .execute()
+
+        invites = response.data or []
+
+        return {"incoming": invites}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при проверке входящих заявок: {e}")
 # @router.put("/{server_id}")
 # async def update_server(
 #     server_id: str,
