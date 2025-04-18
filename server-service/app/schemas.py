@@ -14,7 +14,8 @@ class ServerUpdate(BaseModel):
 
 class ServerMember(BaseModel):
     user_id: str
-    server_id: str
+    username: str
+    avatar: str
     role: str  # "owner", "admin", "member"
 class TextChannel(BaseModel):
     id: str
