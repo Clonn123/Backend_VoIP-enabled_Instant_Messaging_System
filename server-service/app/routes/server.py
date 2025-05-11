@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, HTTPException, Depends, Request
 from ..database import supabase
-from ..schemas import ServerCreate, InviteResponse, InviteCreate, TextChannel, TextChannelCreate
+from ..schemas import ServerCreate, InviteResponse, InviteCreate, TextChannel, TextChannelCreate, VoiceChannel, VoiceChannelCreate
 from uuid import UUID
 from typing import List
 import os
@@ -300,6 +300,82 @@ async def create_text_channel(
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+# Голосовые каналы
+@router.get("/{server_id}/voicechannels")
+async def get_voice_channels(server_id: str, user=Depends(get_current_user)):
+    try:
+        response = supabase.table("voice_channels") \
+            .select("*") \
+            .eq("server_id", server_id) \
+            .order("position") \
+            .execute()
+        return response.data
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/{server_id}/add/voicechannels")
+async def create_voice_channel(server_id: str, channel_data: VoiceChannelCreate, user=Depends(get_current_user)):
+    try:
+        member = supabase.table("server_members") \
+            .select("role") \
+            .eq("server_id", server_id) \
+            .eq("user_id", user.user.id) \
+            .in_("role", ["owner", "admin"]) \
+            .maybe_single() \
+            .execute()
+        if not member or not member.data:
+            raise HTTPException(status_code=403, detail="Нет прав")
+
+        # Определяем позицию
+        last = supabase.table("voice_channels") \
+            .select("position") \
+            .eq("server_id", server_id) \
+            .order("position", desc=True) \
+            .limit(1) \
+            .execute()
+        max_pos = last.data[0]["position"] if last.data else 0
+
+        new_channel = {
+            "server_id": server_id,
+            "name": channel_data.name,
+            "description": channel_data.description,
+            "is_private": channel_data.is_private,
+            "position": max_pos + 1
+        }
+
+        result = supabase.table("voice_channels") \
+            .insert(new_channel, returning="representation") \
+            .execute()
+
+        return result.data[0]
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+@router.delete("/{server_id}/del/voicechannels/{channel_id}")
+async def delete_voice_channel(server_id: str, channel_id: str, user=Depends(get_current_user)):
+    try:
+        member = supabase.table("server_members") \
+            .select("role") \
+            .eq("server_id", server_id) \
+            .eq("user_id", user.user.id) \
+            .in_("role", ["owner", "admin"]) \
+            .maybe_single() \
+            .execute()
+        if not member or not member.data:
+            raise HTTPException(status_code=403, detail="Нет прав")
+
+        supabase.table("voice_channels") \
+            .delete() \
+            .eq("id", channel_id) \
+            .execute()
+
+        return {"message": "Голосовой канал удалён"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при удалении: {str(e)}")
+
 @router.delete("/{server_id}")
 async def delete_server(
     server_id: str,

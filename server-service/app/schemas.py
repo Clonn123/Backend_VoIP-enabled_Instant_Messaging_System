@@ -30,6 +30,21 @@ class TextChannelCreate(BaseModel):
     description: Optional[str] = None
     is_private: bool = False
 
+class VoiceChannel(BaseModel):
+    id: str
+    server_id: str
+    name: str
+    description: str | None
+    position: int
+    is_private: bool
+    created_at: str
+    updated_at: str
+
+class VoiceChannelCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    is_private: bool = False
+
 class InviteResponse(BaseModel):
     status: str  # 'pending', 'accepted', 'rejected'
 class InviteCreate(BaseModel):
