@@ -511,7 +511,19 @@ async def check_incoming_requests(user=Depends(get_current_user)):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при проверке входящих заявок: {e}")
+@router.get("/{server_id}/member")
+async def check_incoming_requests(server_id: str, user=Depends(get_current_user)):
+    try:
+        response = supabase.table("server_members") \
+            .select("*, profiles!user_id(username, avatar_url)") \
+            .eq("server_id", server_id) \
+            .execute()
+
+        return response.data
     
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при загрузке members")
+
 #Сессии голосовых каналов (пока БД, потом Redis или иное)
 @router.post("/{server_id}/voicechannels/{channel_id}/join")
 async def join_voice_channel(channel_id: str, user=Depends(get_current_user)):
@@ -580,7 +592,6 @@ async def heartbeat(channel_id: str, user=Depends(get_current_user)):
         return {"status": "updated"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 # @router.put("/{server_id}")
 # async def update_server(

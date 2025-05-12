@@ -15,7 +15,12 @@ async def get_current_user(request: Request):
 @router.post("/request")
 async def send_friend_request(data: FriendRequest, user=Depends(get_current_user)):
     sender_id = user.user.id
-    sender_username = user.user.user_metadata.get("username")
+    profile = supabase.table("profiles") \
+            .select("*") \
+            .eq("user_id", sender_id) \
+            .single() \
+            .execute()
+    sender_username = profile.data.get("username")
     receiver_username = data.receiver_username
 
     # Получаем профиль по username
@@ -74,7 +79,7 @@ async def respond_to_request(data: FriendRequest, user=Depends(get_current_user)
         .maybe_single() \
         .execute()
     
-    if not sender_profile.data:
+    if not sender_profile:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
 
     sender_id = sender_profile.data["user_id"]
