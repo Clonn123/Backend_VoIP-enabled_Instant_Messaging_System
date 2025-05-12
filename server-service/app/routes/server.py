@@ -8,6 +8,7 @@ import cloudinary
 import cloudinary.uploader
 from cloudinary.utils import cloudinary_url
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
 
 load_dotenv()
 cloudinary.config(
@@ -510,6 +511,77 @@ async def check_incoming_requests(user=Depends(get_current_user)):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ошибка при проверке входящих заявок: {e}")
+    
+#Сессии голосовых каналов (пока БД, потом Redis или иное)
+@router.post("/{server_id}/voicechannels/{channel_id}/join")
+async def join_voice_channel(channel_id: str, user=Depends(get_current_user)):
+    try:
+        supabase.table("voice_sessions").insert({
+            "channel_id": channel_id,
+            "user_id": user.user.id
+        }).execute()
+        return {"message": "User joined voice channel"}
+    except Exception as e:
+        if "duplicate key" in str(e):
+            return {"message": "Already in voice channel"}
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/{server_id}/voicechannels/{channel_id}/leave")
+async def leave_voice_channel(channel_id: str, user=Depends(get_current_user)):
+    try:
+        supabase.table("voice_sessions") \
+            .delete() \
+            .eq("channel_id", channel_id) \
+            .eq("user_id", user.user.id) \
+            .execute()
+        return {"message": "Left voice channel"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/{server_id}/voicechannels/{channel_id}/members")
+async def get_voice_members(channel_id: str):
+    try:
+        threshold = (datetime.utcnow() - timedelta(seconds=6)).isoformat()
+
+        # Удаляем "мертвые" сессии
+        supabase.table("voice_sessions") \
+            .delete() \
+            .lt("last_seen", threshold) \
+            .eq("channel_id", channel_id) \
+            .execute()
+        
+        # Получаем всех user_id из voice_sessions
+        response = supabase.table("voice_sessions") \
+            .select("user_id") \
+            .eq("channel_id", channel_id) \
+            .execute()
+
+        user_ids = [entry["user_id"] for entry in response.data]
+
+        # Получаем профили по этим user_id
+        profiles = supabase.table("profiles") \
+            .select("user_id, username, avatar_url") \
+            .in_("user_id", user_ids) \
+            .execute()
+
+        return profiles.data
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.patch("/{server_id}/voicechannels/{channel_id}/heartbeat")
+async def heartbeat(channel_id: str, user=Depends(get_current_user)):
+    try:
+        supabase.table("voice_sessions") \
+            .update({"last_seen": "now()"}) \
+            .eq("channel_id", channel_id) \
+            .eq("user_id", user.user.id) \
+            .execute()
+        return {"status": "updated"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # @router.put("/{server_id}")
 # async def update_server(
 #     server_id: str,
